@@ -1,69 +1,103 @@
-const canvas = document.getElementById('canvas');
-const decrease = document.getElementById('decrease');
-const increase = document.getElementById('increase');
-const size = document.getElementById('size');
-const color = document.getElementById('color');
-const clear = document.getElementById('clear');
+const tool = document.querySelectorAll('.tool');
+const colorButtons = document.querySelectorAll('.colors .option');
+const fillColor = document.querySelector('#fill-color');
+const sizeSlider = document.querySelector('#size-slider');
+const colorPicker = document.querySelector('#color-picker');
+const clearCanvas = document.querySelector('.clear-canvas');
+const saveImage = document.querySelector('.save-image');
+const canvas = document.querySelector('canvas');
 const zim = canvas.getContext('2d');
-let sizeLength = 30;
-let isPressed = false;
-let colorName = 'black';
-let x = undefined;
-let y = undefined;
-canvas.addEventListener('mousedown',(event) => {
-     isPressed = true;
-     x = event.offsetX;
-     y = event.offsetY;
+let isDrawing = false;
+let selectedTool = 'brush';
+let selectedColor = '#000';
+let brushWidth = 5;
+let previousMouseX;
+let previousMouseY;
+let snapshot;
+const setCanvasBackground = () => {
+     zim.fillStyle = '#fff';
+     zim.fillRect(0,0,canvas.width,canvas.height);
+     zim.fillStyle = selectedColor;
+};
+window.addEventListener('load',() => {
+     canvas.width = canvas.offsetWidth;
+     canvas.height = canvas.offsetHeight;
+     setCanvasBackground();
 });
-canvas.addEventListener('mouseup',(event) => {
-     isPressed = false;
-     x = undefined;
-     y = undefined;
-});
-canvas.addEventListener('mousemove',(event) => {
-     if(isPressed){
-          const x2 = event.offsetX;
-          const y2 = event.offsetY;
-          drawCircle(x2,y2);
-          drawLine(x,y,x2,y2);
-          x = x2;
-          y = y2;
+const drawRect = (event) => {
+     if(!fillColor.checked){
+          return zim.strokeRect(event.offsetX,event.offsetY,previousMouseX - event.offsetX,previousMouseY - event.offsetY);
      }
-});
-function drawCircle(x,y){
+     zim.fillRect(event.offsetX,event.offsetY,previousMouseX - event.offsetX,previousMouseY - event.offsetY);
+};
+const drawCircle = (event) => {
      zim.beginPath();
-     zim.arc(x,y,sizeLength,0,Math.PI * 2);
-     zim.fillStyle = colorName;
-     zim.fill();
-}
-function drawLine(x1,y1,x2,y2){
+     let radius = Math.sqrt(Math.pow((previousMouseX - event.offsetX),2) + Math.pow((previousMouseY - event.offsetY),2));
+     zim.arc(previousMouseX,previousMouseY,radius,0,2 * Math.PI);
+     fillColor.checked ? zim.fill() : zim.stroke();
+};
+const drawTriangle = (event) => {
      zim.beginPath();
-     zim.moveTo(x1,y1);
-     zim.lineTo(x2,y2);
-     zim.strokeStyle = colorName;
-     zim.lineWidth = sizeLength * 2;
-     zim.stroke();
+     zim.moveTo(previousMouseX,previousMouseY);
+     zim.lineTo(event.offsetX,event.offsetY);
+     zim.lineTo(previousMouseX * 2 - event.offsetX,event.offsetY);
+     zim.closePath();
+     fillColor.checked ? zim.fill() : zim.stroke();
 }
-decrease.addEventListener('click',() => {
-     sizeLength -= 5;
-     if(sizeLength < 5){
-          sizeLength = 5;
+const startDraw = (event) => {
+     isDrawing = true;
+     previousMouseX = event.offsetX;
+     previousMouseY = event.offsetY;
+     zim.beginPath();
+     zim.lineWidth = brushWidth;
+     zim.strokeStyle = selectedColor;
+     zim.fillStyle = selectedColor;
+     snapshot = zim.getImageData(0,0,canvas.width,canvas.height);
+};
+const drawing = (event) => {
+     if(!isDrawing) return;
+     zim.putImageData(snapshot,0,0);
+     if(selectedTool === 'brush' || selectedTool === 'eraser'){
+          zim.strokeStyle = selectedTool === 'eraser' ? '#fff' : selectedColor;
+          zim.lineTo(event.offsetX,event.offsetY);
+          zim.stroke();
+     }else if(selectedTool === 'rectangle'){
+          drawRect(event);
+     }else if(selectedTool === 'circle'){
+          drawCircle(event);
+     }else{
+          drawTriangle(event);
      }
-     updateSizeOnScreen();
+};
+tool.forEach(button => {
+     button.addEventListener('click',() => {
+          document.querySelector('.options .active').classList.remove('active');
+          button.classList.add('active');
+          selectedTool = button.id;
+     });
 });
-increase.addEventListener('click',() => {
-     sizeLength += 5;
-     if(sizeLength > 50){
-          sizeLength = 50;
-     }
-     updateSizeOnScreen();
+sizeSlider.addEventListener('change',() => brushWidth = sizeSlider.value);
+colorButtons.forEach(button => {
+     button.addEventListener('click',() => {
+          document.querySelector('.options .selected').classList.remove('selected');
+          button.classList.add('selected');
+          selectedColor = window.getComputedStyle(button).getPropertyValue('background-color');
+     });
 });
-color.addEventListener('change',(event) => {
-     colorName = event.target.value;
+colorPicker.addEventListener('change',() => {
+     colorPicker.parentElement.style.backgroundColor = colorPicker.value;
+     colorPicker.parentElement.click();
 });
-clear.addEventListener('click',() => {
+clearCanvas.addEventListener('click',() => {
      zim.clearRect(0,0,canvas.width,canvas.height);
+     setCanvasBackground();
 });
-function updateSizeOnScreen(){
-     size.innerText = sizeLength;
-}
+saveImage.addEventListener('click',() => {
+     const a = document.createElement('a');
+     a.download = `${Date.now()}.jpg`;
+     a.href = canvas.toDataURL();
+     a.click();
+});
+canvas.addEventListener('mousedown',startDraw);
+canvas.addEventListener('mousemove',drawing);
+canvas.addEventListener('mouseup',() => isDrawing = false);
